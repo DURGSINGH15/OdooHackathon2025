@@ -1,11 +1,15 @@
-"use client"
+// contexts/auth-context.tsx
+'use client'
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 
 interface User {
   id: string
-  username: string
   email: string
+  username: string
+  name?: string
+  image?: string
 }
 
 interface AuthContextType {
@@ -13,54 +17,96 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>
   signup: (email: string, username: string, password: string) => Promise<boolean>
   logout: () => void
-  isAuthenticated: boolean
+  loading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { data: session, status } = useSession()
+
+  useEffect(() => {
+    if (status === 'loading') return
+
+    if (session?.user) {
+      // Convert NextAuth session to our User type
+      setUser({
+        id: session.user.email || '', // You might want to use a proper ID
+        email: session.user.email || '',
+        username: session.user.name || session.user.email?.split('@')[0] || '',
+        name: session.user.name || '',
+        image: session.user.image || undefined,
+      })
+    } else {
+      setUser(null)
+    }
+    setLoading(false)
+  }, [session, status])
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock login - in real app, this would call an API
-    if (email && password) {
-      setUser({
-        id: "1",
-        username: email.split("@")[0],
-        email: email,
+    // Your existing login logic for email/password
+    // This would typically make an API call to your backend
+    try {
+      // Replace with your actual login API call
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       })
-      return true
+      
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Login error:', error)
+      return false
     }
-    return false
   }
 
   const signup = async (email: string, username: string, password: string): Promise<boolean> => {
-    // Mock signup - in real app, this would call an API
-    if (email && username && password) {
-      setUser({
-        id: "1",
-        username: username,
-        email: email,
+    // Your existing signup logic
+    try {
+      // Replace with your actual signup API call
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, username, password }),
       })
-      return true
+      
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Signup error:', error)
+      return false
     }
-    return false
   }
 
   const logout = () => {
     setUser(null)
+    // You might also want to call signOut from next-auth if needed
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        login,
-        signup,
-        logout,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      login,
+      signup,
+      logout,
+      loading: loading || status === 'loading'
+    }}>
       {children}
     </AuthContext.Provider>
   )
@@ -69,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }
