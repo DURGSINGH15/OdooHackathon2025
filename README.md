@@ -2,6 +2,7 @@
 # TEAM 3579
 
 # Problem Statement 2 : Stack It - Minimal Q&A Forum
+# VIDEO LINK already added in the links section.
 
 Features/Functionalities in our web application paeg-wise:
 Page 1: Home Page
