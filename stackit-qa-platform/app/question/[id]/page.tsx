@@ -18,6 +18,9 @@ import { hasValidContent, prepareContentForStorage } from "@/lib/rich-text-utils
 import { ChevronUp, ChevronDown, User, Calendar, MessageSquare } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { useRBAC } from "@/contexts/rbac-context"
+import { ProtectedComponent, AuthenticatedOnly, OwnerOrModeratorOnly } from "@/components/rbac/protected-component"
+import { ModerationMenu } from "@/components/rbac/moderation-menu"
 
 // Mock data
 const mockQuestion = {
@@ -117,7 +120,7 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 export default function QuestionPage() {
   const params = useParams()
-  const { isAuthenticated, user } = useAuth()
+  const rbac = useRBAC()
   const { toast } = useToast()
   const { addNotification } = useNotifications()
   const [newAnswer, setNewAnswer] = useState("")
@@ -133,7 +136,7 @@ export default function QuestionPage() {
   })
 
   const handleVote = (answerId: string, voteType: "up" | "down") => {
-    if (!isAuthenticated) {
+    if (!rbac.isAuthenticated()) {
       setShowLoginDialog(true)
       return
     }
@@ -154,7 +157,7 @@ export default function QuestionPage() {
 
   const handleSubmitAnswer = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isAuthenticated) {
+    if (!rbac.isAuthenticated()) {
       setShowLoginDialog(true)
       return
     }
@@ -183,14 +186,14 @@ export default function QuestionPage() {
     console.log("Answer data for database:", answerData) // For debugging
 
     // Create notification for the question author
-    if (user?.username !== mockQuestion.username) {
+    if (rbac.user?.username !== mockQuestion.username) {
       addNotification({
         type: 'answer',
         title: 'New Answer',
-        message: `${user?.username} answered your question: "${mockQuestion.title}"`,
+        message: `${rbac.user?.username} answered your question: "${mockQuestion.title}"`,
         read: false,
         questionId: mockQuestion.id,
-        fromUser: user?.username || 'anonymous',
+        fromUser: rbac.user?.username || 'anonymous',
         toUser: mockQuestion.username,
         actionUrl: `/question/${mockQuestion.id}`
       })
@@ -202,14 +205,14 @@ export default function QuestionPage() {
     if (mentions) {
       const uniqueMentions = [...new Set(mentions.map(mention => mention.substring(1)))]
       uniqueMentions.forEach(mentionedUser => {
-        if (mentionedUser !== user?.username) {
+        if (mentionedUser !== rbac.user?.username) {
           addNotification({
             type: 'mention',
             title: 'You were mentioned',
-            message: `${user?.username} mentioned you in an answer: "${contentData.preview}"`,
+            message: `${rbac.user?.username} mentioned you in an answer: "${contentData.preview}"`,
             read: false,
             questionId: mockQuestion.id,
-            fromUser: user?.username || 'anonymous',
+            fromUser: rbac.user?.username || 'anonymous',
             toUser: mentionedUser,
             actionUrl: `/question/${mockQuestion.id}`
           })
@@ -228,7 +231,7 @@ export default function QuestionPage() {
   }
 
   const handleSubmitComment = async (answerId: string, answerAuthor: string) => {
-    if (!isAuthenticated) {
+    if (!rbac.isAuthenticated()) {
       setShowLoginDialog(true)
       return
     }
@@ -244,14 +247,14 @@ export default function QuestionPage() {
     }
 
     // Create notification for answer author
-    if (user?.username !== answerAuthor) {
+    if (rbac.user?.username !== answerAuthor) {
       addNotification({
         type: 'comment',
         title: 'New comment on your answer',
-        message: `${user?.username} commented on your answer: "${commentText.slice(0, 50)}${commentText.length > 50 ? '...' : ''}"`,
+        message: `${rbac.user?.username} commented on your answer: "${commentText.slice(0, 50)}${commentText.length > 50 ? '...' : ''}"`,
         read: false,
         questionId: mockQuestion.id,
-        fromUser: user?.username || 'anonymous',
+        fromUser: rbac.user?.username || 'anonymous',
         toUser: answerAuthor,
         actionUrl: `/question/${mockQuestion.id}`
       })
@@ -263,14 +266,14 @@ export default function QuestionPage() {
     if (mentions) {
       const uniqueMentions = [...new Set(mentions.map(mention => mention.substring(1)))]
       uniqueMentions.forEach(mentionedUser => {
-        if (mentionedUser !== user?.username) {
+        if (mentionedUser !== rbac.user?.username) {
           addNotification({
             type: 'mention',
             title: 'You were mentioned',
-            message: `${user?.username} mentioned you in a comment: "${commentText.slice(0, 50)}${commentText.length > 50 ? '...' : ''}"`,
+            message: `${rbac.user?.username} mentioned you in a comment: "${commentText.slice(0, 50)}${commentText.length > 50 ? '...' : ''}"`,
             read: false,
             questionId: mockQuestion.id,
-            fromUser: user?.username || 'anonymous',
+            fromUser: rbac.user?.username || 'anonymous',
             toUser: mentionedUser,
             actionUrl: `/question/${mockQuestion.id}`
           })
@@ -282,7 +285,7 @@ export default function QuestionPage() {
     console.log("Comment data for database:", {
       answerId,
       content: commentText,
-      author: user?.username
+      author: rbac.user?.username
     })
 
     toast({
@@ -320,18 +323,41 @@ export default function QuestionPage() {
           <CardContent className="p-6">
             <h1 className="text-2xl font-bold mb-4">{mockQuestion.title}</h1>
 
-            <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-              <div className="flex items-center gap-1">
-                <User className="h-4 w-4" />
-                {mockQuestion.username}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-1">
+                  <User className="h-4 w-4" />
+                  {mockQuestion.username}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  {mockQuestion.createdAt}
+                </div>
+                <div className="flex items-center gap-1">
+                  <ChevronUp className="h-4 w-4" />
+                  {mockQuestion.votes} votes
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                {mockQuestion.createdAt}
-              </div>
-              <div className="flex items-center gap-1">
-                <ChevronUp className="h-4 w-4" />
-                {mockQuestion.votes} votes
+              
+              <div className="flex items-center gap-2">
+                {/* Owner/Moderator Actions */}
+                <OwnerOrModeratorOnly ownerId={mockQuestion.username}>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                      Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                      Delete
+                    </Button>
+                  </div>
+                </OwnerOrModeratorOnly>
+                
+                {/* Moderation Menu */}
+                <ModerationMenu
+                  resourceType="question"
+                  resourceId={mockQuestion.id.toString()}
+                  ownerId={mockQuestion.username}
+                />
               </div>
             </div>
 
@@ -392,24 +418,47 @@ export default function QuestionPage() {
                         dangerouslySetInnerHTML={{ __html: answer.content }}
                       />
 
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          {answer.username}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <User className="h-4 w-4" />
+                            {answer.username}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {answer.createdAt}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleComments(answer.id.toString())}
+                            className="text-gray-600 hover:text-blue-600"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-1" />
+                            {comments[answer.id.toString()]?.length || 0} comments
+                          </Button>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {answer.createdAt}
+                        
+                        <div className="flex items-center gap-2">
+                          {/* Owner/Moderator Actions */}
+                          <OwnerOrModeratorOnly ownerId={answer.username}>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                                Edit
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                                Delete
+                              </Button>
+                            </div>
+                          </OwnerOrModeratorOnly>
+                          
+                          {/* Moderation Menu */}
+                          <ModerationMenu
+                            resourceType="answer"
+                            resourceId={answer.id.toString()}
+                            ownerId={answer.username}
+                          />
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleComments(answer.id.toString())}
-                          className="text-gray-600 hover:text-blue-600"
-                        >
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          {comments[answer.id.toString()]?.length || 0} comments
-                        </Button>
                       </div>
 
                       {/* Comments Section */}
@@ -430,30 +479,40 @@ export default function QuestionPage() {
                           ))}
 
                           {/* Add Comment */}
-                          <div className="flex gap-2 mt-3">
-                            <Input
-                              placeholder="Add a comment... (use @username to mention someone)"
-                              value={newComment[answer.id.toString()] || ""}
-                              onChange={(e) => setNewComment(prev => ({ 
-                                ...prev, 
-                                [answer.id.toString()]: e.target.value 
-                              }))}
-                              className="flex-1"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault()
-                                  handleSubmitComment(answer.id.toString(), answer.username)
-                                }
-                              }}
-                            />
-                            <Button
-                              size="sm"
-                              onClick={() => handleSubmitComment(answer.id.toString(), answer.username)}
-                              disabled={!newComment[answer.id.toString()]?.trim()}
-                            >
-                              Comment
-                            </Button>
-                          </div>
+                          <AuthenticatedOnly
+                            fallback={
+                              <div className="text-center py-3 text-gray-600">
+                                <Link href="/auth" className="text-blue-600 hover:underline">
+                                  Login to add a comment
+                                </Link>
+                              </div>
+                            }
+                          >
+                            <div className="flex gap-2 mt-3">
+                              <Input
+                                placeholder="Add a comment... (use @username to mention someone)"
+                                value={newComment[answer.id.toString()] || ""}
+                                onChange={(e) => setNewComment(prev => ({ 
+                                  ...prev, 
+                                  [answer.id.toString()]: e.target.value 
+                                }))}
+                                className="flex-1"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    handleSubmitComment(answer.id.toString(), answer.username)
+                                  }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => handleSubmitComment(answer.id.toString(), answer.username)}
+                                disabled={!newComment[answer.id.toString()]?.trim()}
+                              >
+                                Comment
+                              </Button>
+                            </div>
+                          </AuthenticatedOnly>
                         </div>
                       )}
                     </div>
@@ -467,22 +526,38 @@ export default function QuestionPage() {
         <Separator className="my-8" />
 
         {/* Submit Answer */}
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Your Answer</h3>
-            <form onSubmit={handleSubmitAnswer} className="space-y-4">
-              <RichTextEditor
-                value={newAnswer}
-                onChange={setNewAnswer}
-                placeholder="Write your answer here..."
-                minHeight="200px"
-              />
-              <Button type="submit" className="bg-orange-600 hover:bg-orange-700">
-                Post Your Answer
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <AuthenticatedOnly 
+          fallback={
+            <Card>
+              <CardContent className="p-6 text-center">
+                <h3 className="text-lg font-semibold mb-2">Want to answer?</h3>
+                <p className="text-gray-600 mb-4">You need to be logged in to post an answer.</p>
+                <Link href="/auth">
+                  <Button className="bg-orange-600 hover:bg-orange-700">
+                    Login to Answer
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          }
+        >
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Your Answer</h3>
+              <form onSubmit={handleSubmitAnswer} className="space-y-4">
+                <RichTextEditor
+                  value={newAnswer}
+                  onChange={setNewAnswer}
+                  placeholder="Write your answer here..."
+                  minHeight="200px"
+                />
+                <Button type="submit" className="bg-orange-600 hover:bg-orange-700">
+                  Post Your Answer
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </AuthenticatedOnly>
 
         {/* Login Dialog */}
         <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>

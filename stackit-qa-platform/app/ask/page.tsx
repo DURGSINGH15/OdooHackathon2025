@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Header } from "@/components/header"
 import { useAuth } from "@/contexts/auth-context"
+import { useRBAC } from "@/contexts/rbac-context"
 import { useToast } from "@/hooks/use-toast"
 import { useNotifications } from "@/contexts/notification-context"
 import { RichTextEditor } from "@/components/ui/rich-text-editor"
@@ -26,6 +27,7 @@ export default function AskQuestionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { isAuthenticated } = useAuth()
+  const rbac = useRBAC()
   const { addNotification } = useNotifications()
   const router = useRouter()
   const { toast } = useToast()
@@ -34,6 +36,26 @@ export default function AskQuestionPage() {
   if (!isAuthenticated) {
     router.push("/auth")
     return null
+  }
+
+  // Check if user has permission to create questions
+  if (!rbac.hasPermission('question:create')) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-4 py-6 max-w-4xl">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+              <p className="text-gray-600 mb-4">You don't have permission to create questions.</p>
+              <Button onClick={() => router.push('/')}>
+                Back to Questions
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    )
   }
 
   const addTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
