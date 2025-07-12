@@ -13,6 +13,9 @@ import { Badge } from "@/components/ui/badge"
 import { Header } from "@/components/header"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { useNotifications } from "@/contexts/notification-context"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
+import { hasValidContent, prepareContentForStorage } from "@/lib/rich-text-utils"
 import { X } from "lucide-react"
 
 export default function AskQuestionPage() {
@@ -23,6 +26,7 @@ export default function AskQuestionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { isAuthenticated } = useAuth()
+  const { addNotification } = useNotifications()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -48,7 +52,49 @@ export default function AskQuestionPage() {
     e.preventDefault()
     setIsSubmitting(true)
 
+    if (!hasValidContent(description)) {
+      toast({
+        title: "Description required",
+        description: "Please provide a detailed description for your question.",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
+    // Prepare content for database storage
+    const contentData = prepareContentForStorage(description)
+
     // Mock submission - in real app, this would call an API
+    // TODO: Send this data structure to your MongoDB backend
+    const questionData = {
+      title: title.trim(),
+      description: contentData.html,           // HTML content for display
+      descriptionPlainText: contentData.plainText, // Plain text for search
+      descriptionPreview: contentData.preview,     // Preview for listing pages
+      tags: tags,
+    }
+
+    console.log("Question data for database:", questionData) // For debugging
+
+    // Check for @mentions in the question description
+    const mentionRegex = /@(\w+)/g
+    const mentions = contentData.plainText.match(mentionRegex)
+    if (mentions) {
+      const uniqueMentions = [...new Set(mentions.map(mention => mention.substring(1)))]
+      uniqueMentions.forEach(mentionedUser => {
+        addNotification({
+          type: 'mention',
+          title: 'You were mentioned',
+          message: `You were mentioned in a new question: "${title}"`,
+          read: false,
+          fromUser: 'current_user', // Replace with actual current user
+          toUser: mentionedUser,
+          actionUrl: `/question/new` // Replace with actual question ID when created
+        })
+      })
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
     toast({
@@ -87,13 +133,11 @@ export default function AskQuestionPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
+                <RichTextEditor
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={setDescription}
                   placeholder="Provide more details about your question. Include what you've tried and what specific help you need."
-                  rows={8}
-                  required
+                  minHeight="250px"
                 />
                 <p className="text-sm text-gray-500">
                   Include all the information someone would need to answer your question
@@ -128,7 +172,7 @@ export default function AskQuestionPage() {
               <div className="flex gap-4">
                 <Button
                   type="submit"
-                  disabled={isSubmitting || !title.trim() || !description.trim()}
+                  disabled={isSubmitting || !title.trim()}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
                   {isSubmitting ? "Posting..." : "Post Your Question"}

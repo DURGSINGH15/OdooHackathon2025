@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Bell, Search, LogOut } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { NotificationDropdown } from "@/components/ui/notification-dropdown"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export function Header() {
@@ -24,11 +25,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          {isAuthenticated && (
-            <Button variant="ghost" size="icon">
-              <Bell className="h-5 w-5" />
-            </Button>
-          )}
+          {isAuthenticated && <NotificationDropdown />}
 
           {isAuthenticated ? (
             <DropdownMenu>
